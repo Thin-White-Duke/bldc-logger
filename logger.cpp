@@ -43,6 +43,12 @@ Logger::Logger(QObject *parent) :
     mPort->setPortName(argProcessor.getPort());
     if(mPort->open(QIODevice::ReadWrite)) {
         qDebug() << "ok";
+
+        mPort->setBaudRate(QSerialPort::Baud115200);
+        mPort->setDataBits(QSerialPort::Data8);   //8 bits
+        mPort->setParity(QSerialPort::NoParity);   //no parity
+        mPort->setStopBits(QSerialPort::OneStop);   //1 stop bit
+        mPort->setFlowControl(QSerialPort::NoFlowControl);  //no flow control
     } else {
         qWarning() << "Failed!";
     }
