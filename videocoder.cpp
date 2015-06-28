@@ -26,10 +26,20 @@ VideoCoder::VideoCoder(int w, int h, double fps, const char *file, QObject *pare
     mFrameReady = false;
 
     cv::Size S = cv::Size(w, h);
-//    mVideoWriter.open(file, CV_FOURCC('H','2','6','4'), fps, S);
+#ifdef Q_OS_WIN
+    // -1 open dialog with codec manual choose
+    mVideoWriter.open(file, -1, fps, S, true);
+#elif defined(Q_OS_MAC)
+    mVideoWriter.open(file, CV_FOURCC('m', 'p', '4', 'v'), fps, S);
+#else
     mVideoWriter.open(file, CV_FOURCC('X','V','I','D'), fps, S);
+#endif
+//    mVideoWriter.open(file, CV_FOURCC('H','2','6','4'), fps, S);
 //    mVideoWriter.open(file, CV_FOURCC('M','J','P','G'), fps, S);
 //    mVideoWriter.open(file, CV_FOURCC('I','Y','U','V'), fps, S);
+    if(!mVideoWriter.isOpened()) {
+        qWarning() << "Can't open video writer" << file;
+    }
 }
 
 void VideoCoder::setNextFrame(QImage img)

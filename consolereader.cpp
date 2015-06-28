@@ -16,13 +16,14 @@
     */
 
 #include "consolereader.h"
+
 #include <QTextStream>
 #include <unistd.h> // Provides STDIN_FILENO
 
 ConsoleReader::ConsoleReader(QObject *parent) :
     QObject(parent)
 {
-    notifier = new QSocketNotifier(STDIN_FILENO, QSocketNotifier::Read);
+    notifier = new QSocketNotifier(STDIN_FILENO, QSocketNotifier::Read, this);
     connect(notifier, SIGNAL(activated(int)), this, SLOT(text()));
 }
 

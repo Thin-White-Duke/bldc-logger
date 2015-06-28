@@ -14,16 +14,21 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
     */
-
 #include "framegrabber.h"
-#include <QDebug>
+
+#include <QtDebug>
 
 FrameGrabber::FrameGrabber(int w, int h, int fps, int dev, QObject *parent) :
     QThread(parent)
 {
     mAbort = false;
 
-    mVideoCap.open(dev);
+    qDebug().nospace() << "Opening camera " << dev << "...";
+    if(mVideoCap.open(dev)) {
+        qDebug() << "ok";
+    } else {
+        qWarning() << "Failed!";
+    }
 
     mVideoCap.set(CV_CAP_PROP_FRAME_WIDTH, w);
     mVideoCap.set(CV_CAP_PROP_FRAME_HEIGHT, h);
@@ -66,4 +71,19 @@ void FrameGrabber::run()
             mLatestFrame = MatToQImage(mFrameMat);
         }
     }
+
+    // working solution for some cameras
+//        while (mVideoCap.isOpened() && !mAbort) {
+//            int CAMERA_CHECK_ITERATIONS = 40;
+//            mVideoCap >> mFrameMat;
+//            if ( mFrameMat.total() > 0 ) {
+//                QMutexLocker lock(&mMutex);
+//                mLatestFrame = MatToQImage(mFrameMat);
+//            } else {
+//                qWarning() << "::: Accessing camera :::";
+//                if ( CAMERA_CHECK_ITERATIONS > 0 ) CAMERA_CHECK_ITERATIONS--;
+//                if ( CAMERA_CHECK_ITERATIONS < 0 ) break;
+//            }
+//        }
+
 }

@@ -16,17 +16,22 @@
     */
 
 #include "logger.h"
+
 #include <QCoreApplication>
 #include <QDebug>
+
+#include "argprocessor.h"
 
 Logger::Logger(QObject *parent) :
     QObject(parent)
 {
-    mPort = new SerialPort(this);
+    ArgProcessor argProcessor;
+    mPort = new QSerialPort(this);
     mPacketInterface = new PacketInterface(this);
 
-    mValueFile = new QFile("Data/BLDC_Values");
-    mPrintFile = new QFile("Data/BLDC_Print");
+    QDir().mkpath(qApp->applicationDirPath() + "/Data");
+    mValueFile = new QFile(qApp->applicationDirPath() + "/Data/BLDC_Values");
+    mPrintFile = new QFile(qApp->applicationDirPath() + "/Data/BLDC_Print");
 
     mValueFile->open(QIODevice::WriteOnly | QIODevice::Text);
     mPrintFile->open(QIODevice::WriteOnly | QIODevice::Text);
@@ -34,20 +39,31 @@ Logger::Logger(QObject *parent) :
     mValueStream = new QTextStream(mValueFile);
     mPrintStream = new QTextStream(mPrintFile);
 
-    mPort->openPort("/dev/ttyACM0");
+    qDebug().nospace() << "Opening port " << argProcessor.getPort() << "...";
+    mPort->setPortName(argProcessor.getPort());
+    if(mPort->open(QIODevice::ReadWrite)) {
+        qDebug() << "ok";
+    } else {
+        qWarning() << "Failed!";
+    }
 
     // Video
-    mVidW = 1280;
-    mVidH = 720;
-    mVidFps = 25.0;
+    mVidW = argProcessor.getWidth();
+    mVidH = argProcessor.getHeight();
+    mVidFps = argProcessor.getFps();
     mFAudioSamp = 44100;
 
-    mFrameGrabber = new FrameGrabber(mVidW, mVidH, mVidFps, 0, this);
+    mFrameGrabber = new FrameGrabber(mVidW, mVidH, mVidFps, argProcessor.getCamera(), this);
     mFrameGrabber->start(QThread::InheritPriority);
     mPlotter = new FramePlotter(this);
     mPlotter->start(QThread::InheritPriority);
 
-    mCoder = new VideoCoder(mVidW, mVidH, mVidFps, "Data/v_video.avi", this);
+#ifdef Q_OS_MAC
+    QString ext = ".mov";
+#else
+    QString ext = ".avi";
+#endif
+    mCoder = new VideoCoder(mVidW, mVidH, mVidFps, QString(qApp->applicationDirPath() + "/Data/v_video" + ext).toLatin1().constData(), this);
     mCoder->start(QThread::InheritPriority);
 
     // Audio recording
@@ -55,7 +71,7 @@ Logger::Logger(QObject *parent) :
     mAudio = 0;
 
     if (QAudioDeviceInfo::availableDevices(QAudio::AudioInput).size() > 0) {
-        mAudioFile.setFileName("Data/v_audio.raw");
+        mAudioFile.setFileName(qApp->applicationDirPath() + "/Data/v_audio.raw");
         mAudioFile.open(QIODevice::WriteOnly | QIODevice::Truncate);
 
         QAudioFormat format;
@@ -73,10 +89,13 @@ Logger::Logger(QObject *parent) :
             format = info.nearestFormat(format);
         }
 
+
+
         mAudio = new QAudioInput(format, this);
         mAudio->setNotifyInterval(1000 / mVidFps);
         mAudio->start(&mAudioFile);
     } else {
+        qWarning() << "No audio input detected!";
         mTimer = new QTimer(this);
         mTimer->setInterval(1000 / mVidFps);
         mTimer->start();
@@ -87,12 +106,10 @@ Logger::Logger(QObject *parent) :
     connect(mConsoleReader, SIGNAL(textReceived(QString)),
             this, SLOT(consoleLineReceived(QString)));
 
-    connect(mPort, SIGNAL(serial_data_available()),
+    connect(mPort, SIGNAL(readyRead()),
             this, SLOT(serialDataAvailable()));
-
-    if (mTimer != 0) {
-        connect(mTimer, SIGNAL(timeout()), this, SLOT(timerSlot()));
-    }
+    connect(mPort, SIGNAL(error(QSerialPort::SerialPortError)),
+            this, SLOT(serialPortError(QSerialPort::SerialPortError)));
 
     if (mAudio != 0) {
         connect(mAudio, SIGNAL(notify()),
@@ -101,6 +118,8 @@ Logger::Logger(QObject *parent) :
         // Lower the volume to avoid clipping. This seems to be passed to
         // pulseaudio.
         mAudio->setVolume(0.1);
+    } else {
+        connect(mTimer, SIGNAL(timeout()), this, SLOT(audioNotify()));
     }
 
     connect(mPacketInterface, SIGNAL(dataToSend(QByteArray&)),
@@ -127,17 +146,19 @@ Logger::~Logger()
     mFrameGrabber->stopAndWait();
     mPlotter->stopAndWait();
     mCoder->stopAndWait();
+    mPort->close();
 
     if (mAudio != 0) {
         mAudioFile.close();
         delete mAudio;
-        rawToWav("Data/v_audio.wav", "Data/v_audio.raw", mFAudioSamp);
+        rawToWav(QString(qApp->applicationDirPath() + "/Data/v_audio.wav").toLatin1().constData(), QString(qApp->applicationDirPath() + "/Data/v_audio.raw").toLatin1().constData(), mFAudioSamp);
     }
 
     delete mValueStream;
     delete mPrintStream;
     delete mValueFile;
     delete mPrintFile;
+    delete mPort;
 }
 
 void Logger::consoleLineReceived(QString line)
@@ -177,6 +198,35 @@ void Logger::serialDataAvailable()
     }
 }
 
+void Logger::serialPortError(QSerialPort::SerialPortError error)
+{
+    QString message;
+    switch (error) {
+    case QSerialPort::NoError:
+        break;
+    case QSerialPort::DeviceNotFoundError:
+        message = tr("Device not found");
+        break;
+    case QSerialPort::OpenError:
+        message = tr("Can't open device");
+        break;
+    case QSerialPort::NotOpenError:
+        message = tr("Not open error");
+        break;
+    default:
+        message = QString::number(error);
+        break;
+    }
+
+    if(!message.isEmpty()) {
+        if(mPort->isOpen()) {
+            mPort->close();
+        }
+        qWarning() << "Serial port error: " << message;
+    }
+}
+
+
 void Logger::timerSlot()
 {
     mPacketInterface->getValues();
@@ -185,7 +235,7 @@ void Logger::timerSlot()
 void Logger::packetDataToSend(QByteArray &data)
 {
     if (mPort->isOpen()) {
-        mPort->writeData(data.data(), data.size());
+        mPort->write(data);
     }
 }
 

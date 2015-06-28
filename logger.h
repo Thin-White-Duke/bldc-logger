@@ -21,16 +21,25 @@
 #include <QObject>
 #include <QFile>
 #include <QTextStream>
-#include <consolereader.h>
+
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
+
+#include <QSerialPort>
+
 #include "MatToQImage.h"
-#include "serialport.h"
 #include "packetinterface.h"
 #include "qcustomplot.h"
 #include "videocoder.h"
 #include "frameplotter.h"
 #include "framegrabber.h"
+
+#ifdef Q_OS_WIN
+#include <consolereader_win.h>
+#else
+#include <consolereader.h>
+#endif
+
 
 class Logger : public QObject
 {
@@ -47,6 +56,7 @@ public slots:
 private slots:
     void consoleLineReceived(QString line);
     void serialDataAvailable();
+    void serialPortError(QSerialPort::SerialPortError error);
     void timerSlot();
     void packetDataToSend(QByteArray &data);
     void mcValuesReceived(PacketInterface::MC_VALUES values);
@@ -57,7 +67,7 @@ private slots:
     void audioNotify();
 
 private:
-    SerialPort *mPort;
+    QSerialPort *mPort;
     QTimer *mTimer;
     PacketInterface *mPacketInterface;
     QFile *mValueFile;
