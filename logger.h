@@ -59,7 +59,7 @@ private slots:
     void serialPortError(QSerialPort::SerialPortError error);
     void timerSlot();
     void packetDataToSend(QByteArray &data);
-    void mcValuesReceived(PacketInterface::MC_VALUES values);
+    void mcValuesReceived(MC_VALUES values);
     void printReceived(QString str);
     void samplesReceived(QByteArray data);
     void rotorPosReceived(double pos);
@@ -84,7 +84,7 @@ private:
     QFile mAudioFile;
     QAudioInput *mAudio;
     int mFAudioSamp;
-    PacketInterface::MC_VALUES mLastMcVal;
+    MC_VALUES mLastMcVal;
 
     void write_little_endian(unsigned int word, int num_bytes, QFile &wav_file);
     void rawToWav(const char *out_file, const char *in_file, int s_rate);

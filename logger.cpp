@@ -39,6 +39,7 @@ Logger::Logger(QObject *parent) :
     mValueStream = new QTextStream(mValueFile);
     mPrintStream = new QTextStream(mPrintFile);
 
+//<<<<<<< HEAD
     qDebug().nospace() << "Opening port " << argProcessor.getPort() << "...";
     mPort->setPortName(argProcessor.getPort());
     if(mPort->open(QIODevice::ReadWrite)) {
@@ -52,6 +53,9 @@ Logger::Logger(QObject *parent) :
     } else {
         qWarning() << "Failed!";
     }
+//=======
+//    mPort->openPort("/dev/rfcomm0");
+//>>>>>>> upstream/master
 
     // Video
     mVidW = argProcessor.getWidth();
@@ -130,8 +134,8 @@ Logger::Logger(QObject *parent) :
 
     connect(mPacketInterface, SIGNAL(dataToSend(QByteArray&)),
             this, SLOT(packetDataToSend(QByteArray&)));
-    connect(mPacketInterface, SIGNAL(valuesReceived(PacketInterface::MC_VALUES)),
-            this, SLOT(mcValuesReceived(PacketInterface::MC_VALUES)));
+    connect(mPacketInterface, SIGNAL(valuesReceived(MC_VALUES)),
+            this, SLOT(mcValuesReceived(MC_VALUES)));
     connect(mPacketInterface, SIGNAL(printReceived(QString)),
             this, SLOT(printReceived(QString)));
     connect(mPacketInterface, SIGNAL(samplesReceived(QByteArray)),
@@ -245,7 +249,7 @@ void Logger::packetDataToSend(QByteArray &data)
     }
 }
 
-void Logger::mcValuesReceived(PacketInterface::MC_VALUES values)
+void Logger::mcValuesReceived(MC_VALUES values)
 {
     QString str;
     str.sprintf("%.1f,%.2f,%.1f,%.2f,%.2f,%d\n",
